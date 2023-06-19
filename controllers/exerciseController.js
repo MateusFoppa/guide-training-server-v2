@@ -26,31 +26,31 @@ class ExerciseController {
   }
 
   async indexList(req, res) {
-    const exercise = await Exercise.find({}, { trainingBy: 0, charge: 0, movements: 0 }).sort("createdAt");
+    const adminId = "648de025365b5504ac3901fe";
+    const exercise = await Exercise.find({createdBy: adminId}, { trainingBy: 0, charge: 0, movements: 0 }).sort("createdAt");
     res.status(StatusCodes.OK).json({ exercise, count: exercise.length });
   }
 
   // Mostra por id
   async show(req, res) {
-    console.log( req)
+    const { exerciseId } = req.params;
+    const exercise = await Exercise.findById({ _id: exerciseId });
 
-    // const { _id } = req.params;
-    // const training = await Training.findOne({ _id });
+    if (!exercise) {
+      return res.status(404).json();
+    }
 
-    // if (!training) {
-    //   return res.status(404).json();
-    // }
-
-    // return res.json(training);
-    res.send("show");
+    return res.status(StatusCodes.OK).json(exercise);
   }
 
   async create(req, res) {
     const { trainingId } = req.params;
+    const { userId } = req.user;
+    console.log(userId);
     // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
     const training = await Training.findOne({
         _id: trainingId,
-        createdBy: req.user.userId,
+        createdBy: userId,
       })
 
     // If para validação se TrainingId é de req.user.userId
@@ -60,6 +60,7 @@ class ExerciseController {
     }
 
     req.body.trainingBy = trainingId;
+    req.body.createdBy = userId;
 
     const exercise = await Exercise.create(req.body);
     return res.status(StatusCodes.CREATED).json(exercise);
@@ -67,6 +68,7 @@ class ExerciseController {
 
   async clone(req, res) {
     const { trainingId, exerciseId} = req.params;
+
     // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
     const training = await Training.findOne({
         _id: trainingId,
@@ -76,18 +78,23 @@ class ExerciseController {
     // If para validação se TrainingId é de req.user.userId
     if (!training) {
       return res.status(StatusCodes.OK).json({ msg:'Training no match for User' });
-
     }
-    const exerciseClone = await Exercise.findById(exerciseId)
-    exerciseClone.trainingBy = trainingId;
 
-    const exercise = await Exercise.create(exerciseClone);
+    const exerciseClone = await Exercise.findById(exerciseId)
+
+    if (!exerciseClone) {
+      throw new CustomAPIError.BadRequestError('Exercise not defined')
+     }
+
+    const {name, image, description, series, movements } = exerciseClone;
+
+    const exercise = await Exercise.create({name, image, description, series, movements, trainingBy: trainingId, createdBy: req.user.userId});
     return res.status(StatusCodes.CREATED).json(exercise);
   }
 
   async update(req, res) {
     const {
-      body: { name, image, description, series, charge, movements},
+      body: { movements, series, charge,  name, image, description, },
       user: { userId },
       params: { exerciseId, trainingId },
     } = req

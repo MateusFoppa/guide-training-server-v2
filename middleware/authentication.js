@@ -1,23 +1,34 @@
-const User = require('../models/User')
-const jwt = require('jsonwebtoken')
-const { UnauthenticatedError } = require('../errors')
+const CustomError = require('../errors');
+const { isTokenValid } = require('../utils');
 
-const auth = (req, res, next) => {
-    //check header
-    const authHeader = req.headers.authorization
-    if(!authHeader || !authHeader.startsWith('Bearer ')){
-        throw new UnauthenticatedError('Authentication invalid')
+const authenticateUser = async (req, res, next) => {
+  const token = req.signedCookies.token;
+
+  if (!token) {
+    throw new CustomError.UnauthenticatedError('Authentication Invalid');
+  }
+
+  try {
+    const { name, userId, role } = isTokenValid({ token });
+    req.user = { name, userId, role };
+    next();
+  } catch (error) {
+    throw new CustomError.UnauthenticatedError('Authentication Invalid');
+  }
+};
+
+const authorizePermissions = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      throw new CustomError.UnauthorizedError(
+        'Unauthorized to access this route'
+      );
     }
-    const token = authHeader.split(' ')[1]
+    next();
+  };
+};
 
-    try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET)
-        // atteach the user to the job routes
-        req.user = {userId: payload.userId, name: payload.name}
-        next();
-    }catch (error){
-        throw new UnauthenticatedError('Authenticated Invalid')
- }    
-}
-
-module.exports = auth
+module.exports = {
+  authenticateUser,
+  authorizePermissions,
+};

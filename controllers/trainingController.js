@@ -1,7 +1,8 @@
 const Training = require("../models/Training");
 const { StatusCodes } = require("http-status-codes");
-const { BadRequestError, NotFoundError } = require("../errors");
+const { BadRequestError, NotFoundError, CustomAPIError } = require("../errors");
 const User = require("../models/User");
+const Exercise = require("../models/Exercise");
 
 class TrainingController {
   // Mostra todos
@@ -13,21 +14,21 @@ class TrainingController {
   }
 
   async indexList(req, res) {
-    const training = await Training.find({}, { createdBy: 0}).sort("createdAt");
+    const adminId = "648de025365b5504ac3901fe";
+    const training = await Training.find({createdBy: adminId}, { createdBy: 0}).sort("createdAt");
     res.status(StatusCodes.OK).json({ training, count: training.length });
   }
 
   // Mostra por id
   async show(req, res) {
-    // const { _id } = req.params;
-    // const training = await Training.findOne({ _id });
+    const { trainingId } = req.params;
+    const training = await Training.findById({ _id: trainingId });
 
-    // if (!training) {
-    //   return res.status(404).json();
-    // }
+    if (!training) {
+      return res.status(404).json();
+    }
 
-    // return res.json(training);
-    res.send("show");
+    return res.status(StatusCodes.OK).json(training);
   }
 
   async create(req, res) {
@@ -40,7 +41,19 @@ class TrainingController {
   async clone(req, res) {
     const { trainingId } = req.params;
     const trainingClone = await Training.findById(trainingId)
-    trainingClone.createdBy = req.user.userId;
+ if (!trainingClone) {
+  throw new CustomAPIError.BadRequestError('Training not defined')
+ }
+
+    // desestruturar training e adicionar novo criador
+    const { name } = trainingClone
+    const { userId } = req.user
+    
+    const exerciseClone = await Exercise.find({trainingBy: trainingId}, { charge: 0, _id: 0 }).sort("createdAt");
+    
+    console.log(exerciseClone.length);
+
+    // recria o treino e seus exercicios para o id logado,de momento será implementado somente para exercicios
 
     const training = await Training.create(trainingClone);
     return res.status(StatusCodes.CREATED).json(training);

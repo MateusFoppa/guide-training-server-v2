@@ -2,8 +2,6 @@ const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
-const userRoles = ['ADMIN', 'DEFAULT']; // Definindo os valores possíveis para a propriedade 'role'
-
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -13,9 +11,9 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: userRoles, // Usando o objeto 'userRoles' para definir os valores permitidos
-    required: [true, 'Please provide Role: ADMIN or DEFAULT'],
-  },
+    enum: ['admin', 'user'],
+    default: 'user',
+},
   email: {
     type: String,
     required: [true, 'Please provide email'],

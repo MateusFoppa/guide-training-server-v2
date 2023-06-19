@@ -23,5 +23,8 @@ router
 
   router.route('/list').get(indexList)
 
+  router.route('/:exerciseId').get(show)
+
+
 
 module.exports = router;

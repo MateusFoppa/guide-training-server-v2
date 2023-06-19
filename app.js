@@ -2,21 +2,23 @@ require('dotenv').config();
 require('express-async-errors');
 
 // extra security packages
+const cookieParser = require('cookie-parser');
+
 const helmet = require('helmet');
 const cors = require('cors');
 const xss = require('xss-clean');
 const rateLimiter = require('express-rate-limit');
 
 // Swagger
-const swaggerUI = require('swagger-ui-express');
-const YAML = require('yamljs');
-const swaggerDocument = YAML.load('./swagger.yaml');
+// const swaggerUI = require('swagger-ui-express');
+// const YAML = require('yamljs');
+// const swaggerDocument = YAML.load('./swagger.yaml');
 
 const express = require('express');
 const app = express();
 
 const connectDB = require('./db/connect');
-const authenticateUser = require('./middleware/authentication');
+const { authenticateUser } = require('./middleware/authentication');
 
 // routers
 const authRouter = require('./routes/auth');
@@ -35,14 +37,16 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(cookieParser(process.env.JWT_SECRET));
 app.use(helmet());
 app.use(cors());
 app.use(xss());
 
 app.get('/', (req, res) => {
-  res.send('<h1>Jobs API</h1><a href="/api-docs">Documentation</a>');
+  console.log(req.signedCookies.token);
+  res.send('<h1>GuideTraining API</h1>');
 });
-app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDocument));
+// app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDocument));
 
 // routes
 app.use('/auth', authRouter);
