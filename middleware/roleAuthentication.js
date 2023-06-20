@@ -8,7 +8,7 @@ const role = async (req, res, next) => {
     const { userId } = req.user;
 
     // Verifique se o usuário é um administrador
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user || user.role !== "admin") {
       return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Acesso negado." });
     }

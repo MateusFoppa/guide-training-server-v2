@@ -1,21 +1,21 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const db = require("../db/db"); // importando configuração do banco
 
-const TrainingSchema = new mongoose.Schema(
+const Training = db.define(
+  "Training",
   {
     name: {
-        type: String,
-        required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
-    //  exercise:{
-    //    type: ExerciseData,
-    //  },
     createdBy: {
-      type: mongoose.Types.ObjectId,
-      ref: "User",
-      required: [true, "Please provide user"],
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model("Training", TrainingSchema);
+module.exports = Training;

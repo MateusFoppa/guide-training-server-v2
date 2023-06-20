@@ -1,28 +1,32 @@
-const Training = require("../models/Training");
+const { Op } = require("sequelize");
 const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, NotFoundError, CustomAPIError } = require("../errors");
+const Training = require("../models/Training");
 const User = require("../models/User");
 const Exercise = require("../models/Exercise");
 
 class TrainingController {
-  // Mostra todos
   async index(req, res) {
-    const training = await Training.find({ createdBy: req.user.userId }).sort(
-      "createdAt"
-    );
+    const training = await Training.findAll({
+      where: { createdBy: req.user.userId },
+      order: [["createdAt", "ASC"]],
+    });
     res.status(StatusCodes.OK).json({ training, count: training.length });
   }
 
   async indexList(req, res) {
     const adminId = "648de025365b5504ac3901fe";
-    const training = await Training.find({createdBy: adminId}, { createdBy: 0}).sort("createdAt");
+    const training = await Training.findAll({
+      where: { createdBy: adminId },
+      attributes: { exclude: ["createdBy"] },
+      order: [["createdAt", "ASC"]],
+    });
     res.status(StatusCodes.OK).json({ training, count: training.length });
   }
 
-  // Mostra por id
   async show(req, res) {
     const { trainingId } = req.params;
-    const training = await Training.findById({ _id: trainingId });
+    const training = await Training.findByPk(trainingId);
 
     if (!training) {
       return res.status(404).json();
@@ -40,22 +44,28 @@ class TrainingController {
 
   async clone(req, res) {
     const { trainingId } = req.params;
-    const trainingClone = await Training.findById(trainingId)
- if (!trainingClone) {
-  throw new CustomAPIError.BadRequestError('Training not defined')
- }
+    const trainingClone = await Training.findByPk(trainingId);
+    if (!trainingClone) {
+      throw new CustomAPIError.BadRequestError("Training not defined");
+    }
 
-    // desestruturar training e adicionar novo criador
-    const { name } = trainingClone
-    const { userId } = req.user
-    
-    const exerciseClone = await Exercise.find({trainingBy: trainingId}, { charge: 0, _id: 0 }).sort("createdAt");
-    
+    const { name } = trainingClone;
+    const { userId } = req.user;
+
+    const exerciseClone = await Exercise.findAll({
+      where: { trainingBy: trainingId },
+      attributes: { exclude: ["charge", "id"] },
+      order: [["createdAt", "ASC"]],
+    });
+
     console.log(exerciseClone.length);
 
-    // recria o treino e seus exercicios para o id logado,de momento será implementado somente para exercicios
+    const training = await Training.create({
+      name,
+      createdBy: userId,
+      Exercises: exerciseClone,
+    });
 
-    const training = await Training.create(trainingClone);
     return res.status(StatusCodes.CREATED).json(training);
   }
 
@@ -69,16 +79,17 @@ class TrainingController {
     if (name === "") {
       throw new BadRequestError("Name or Exercise fields cannot be empty");
     }
-     const training = await Training.findByIdAndUpdate(
-        { _id: trainingId, createdBy: userId },
-        req.body,
-        { new: true, runValidators: true }
-      );
 
-    if (!training) {
+    const [affectedRows] = await Training.update(req.body, {
+      where: { id: trainingId, createdBy: userId },
+    });
+
+    if (affectedRows === 0) {
       throw new NotFoundError(`No Training with id ${trainingId}`);
     }
-    res.status(StatusCodes.OK).json({ training });
+
+    const updatedTraining = await Training.findByPk(trainingId);
+    res.status(StatusCodes.OK).json({ training: updatedTraining });
   }
 
   async destroy(req, res) {
@@ -87,13 +98,14 @@ class TrainingController {
       params: { trainingId },
     } = req;
 
-    const training = await Training.findByIdAndRemove({
-      _id: trainingId,
-      createdBy: userId,
+    const affectedRows = await Training.destroy({
+      where: { id: trainingId, createdBy: userId },
     });
-    if (!training) {
+
+    if (affectedRows === 0) {
       throw new NotFoundError(`No Training with id ${trainingId}`);
     }
+
     res.status(StatusCodes.OK).send();
   }
 }

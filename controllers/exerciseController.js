@@ -1,40 +1,52 @@
 const Exercise = require("../models/Exercise");
 const Training = require("../models/Training");
+const { Op } = require("sequelize");
 
 const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, NotFoundError } = require("../errors");
 
 class ExerciseController {
-  // Mostra todos
   async index(req, res) {
     const { trainingId } = req.params;
-    // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
+    
     const training = await Training.findOne({
-        _id: trainingId,
+      where: {
+        id: trainingId,
         createdBy: req.user.userId,
-      })
+      },
+    });
 
-    // If para validação se TrainingId é de req.user.userId
     if (!training) {
-        return res.status(StatusCodes.OK).json({ msg:'Training no match for User' });
+      return res.status(StatusCodes.OK).json({ msg: 'Training no match for User' });
     }
 
-    const exercise = await Exercise.find({ trainingBy: trainingId }).sort(
-      "createdAt"
-    );
-    res.status(StatusCodes.OK).json({ exercise, count: exercise.length });
+    const exercises = await Exercise.findAll({
+      where: {
+        trainingBy: trainingId,
+      },
+      order: [['createdAt', 'ASC']],
+    });
+
+    res.status(StatusCodes.OK).json({ exercises, count: exercises.length });
   }
 
   async indexList(req, res) {
-    const adminId = "648de025365b5504ac3901fe";
-    const exercise = await Exercise.find({createdBy: adminId}, { trainingBy: 0, charge: 0, movements: 0 }).sort("createdAt");
-    res.status(StatusCodes.OK).json({ exercise, count: exercise.length });
+    const adminId = '1';
+
+    const exercises = await Exercise.findAll({
+      where: {
+        createdBy: adminId,
+      },
+      attributes: { exclude: ['trainingBy', 'charge', 'movements'] },
+      order: [['createdAt', 'ASC']],
+    });
+    res.status(StatusCodes.OK).json({ exercises, count: exercises.length });
   }
 
-  // Mostra por id
   async show(req, res) {
     const { exerciseId } = req.params;
-    const exercise = await Exercise.findById({ _id: exerciseId });
+
+    const exercise = await Exercise.findByPk(exerciseId);
 
     if (!exercise) {
       return res.status(404).json();
@@ -46,17 +58,16 @@ class ExerciseController {
   async create(req, res) {
     const { trainingId } = req.params;
     const { userId } = req.user;
-    console.log(userId);
-    // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
+
     const training = await Training.findOne({
-        _id: trainingId,
+      where: {
+        id: trainingId,
         createdBy: userId,
-      })
+      },
+    });
 
-    // If para validação se TrainingId é de req.user.userId
     if (!training) {
-      return res.status(StatusCodes.OK).json({ msg:'Training no match for User' });
-
+      return res.status(StatusCodes.OK).json({ msg: 'Training no match for User' });
     }
 
     req.body.trainingBy = trainingId;
@@ -67,79 +78,114 @@ class ExerciseController {
   }
 
   async clone(req, res) {
-    const { trainingId, exerciseId} = req.params;
+    const { trainingId, exerciseId } = req.params;
 
-    // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
     const training = await Training.findOne({
-        _id: trainingId,
+      where: {
+        id: trainingId,
         createdBy: req.user.userId,
-      })
+      },
+    });
 
-    // If para validação se TrainingId é de req.user.userId
     if (!training) {
-      return res.status(StatusCodes.OK).json({ msg:'Training no match for User' });
+      return res.status(StatusCodes.OK).json({ msg: 'Training no match for User' });
     }
 
-    const exerciseClone = await Exercise.findById(exerciseId)
+    const exerciseClone = await Exercise.findByPk(exerciseId);
 
     if (!exerciseClone) {
-      throw new CustomAPIError.BadRequestError('Exercise not defined')
-     }
+      throw new BadRequestError('Exercise not defined');
+    }
 
-    const {name, image, description, series, movements } = exerciseClone;
+    const { name, image, description, series, movements } = exerciseClone;
 
-    const exercise = await Exercise.create({name, image, description, series, movements, trainingBy: trainingId, createdBy: req.user.userId});
+    const exercise = await Exercise.create({
+      name,
+      image,
+      description,
+      series,
+      movements,
+      trainingBy: trainingId,
+      createdBy: req.user.userId,
+    });
+
     return res.status(StatusCodes.CREATED).json(exercise);
   }
 
   async update(req, res) {
     const {
-      body: { movements, series, charge,  name, image, description, },
-      user: { userId },
-      params: { exerciseId, trainingId },
-    } = req
-  
-    if (name === '' || image === '' || description === '' || series === '' || charge === '' || movements === '' ) {
-      throw new BadRequestError('Insert information for exercise')
+      movements,
+      series,
+      charge,
+      name,
+      image,
+      description,
+    } = req.body;
+
+console.log(req.body);
+
+    const { userId } = req.user;
+    const { exerciseId, trainingId } = req.params;
+
+    if (!series || !charge || !movements) {
+      throw new BadRequestError('Insert information for exercise');
     }
 
-    // Recebe o id do training e procura no banco e verifica se pertence ao usuário logado
     const training = await Training.findOne({
-      _id: trainingId,
-      createdBy: req.user.userId,
-    })
+      where: {
+        id: trainingId,
+        createdBy: userId,
+      },
+    });
 
-  // If para validação se TrainingId é de req.user.userId
-  if (!training) {
-    return res.status(StatusCodes.OK).json({ msg:'Training no match for User' });
-
-  }
-    const exercise = await Exercise.findByIdAndUpdate(
-      { _id: exerciseId, trainingBy: trainingId },
-      req.body,
-      { new: true, runValidators: true }
-    )
-    if (!exercise) {
-      throw new NotFoundError(`No Exercise with id ${exerciseId}`)
+    if (!training) {
+      return res.status(StatusCodes.OK).json({ msg: 'Training no match for User' });
     }
-    res.status(StatusCodes.OK).json({ exercise })
+
+    const [updatedRows] = await Exercise.update(
+      {
+        name: name,
+        image: image,
+        description: description,
+        series: series,
+        movements: movements,
+        charge: charge
+      },
+      {
+        where: {
+          id: exerciseId,
+          trainingBy: trainingId,
+        },
+        returning: true,
+      }
+    );
+
+    if (updatedRows === 0) {
+      throw new NotFoundError(`No Exercise with id ${exerciseId}`);
+    }
+
+    const exercise = await Exercise.findByPk(exerciseId);
+
+    res.status(StatusCodes.OK).json({ exercise });
   }
 
   async destroy(req, res) {
-    const {
-      user: { userId },
-      params: { exerciseId, trainingId },
-    } = req
-    
-      const exercise = await Exercise.findByIdAndRemove({
-        _id: exerciseId,
-        trainingIdBy: trainingId,
-      })
-      if (!exercise) {
-        throw new NotFoundError(`No Exercise with id ${exerciseId}`)
-      }
-      res.status(StatusCodes.OK).send()
+    const { userId } = req.user;
+    const { exerciseId, trainingId } = req.params;
+
+    const exercise = await Exercise.destroy({
+      where: {
+        id: exerciseId,
+        trainingBy: trainingId,
+      },
+    });
+
+    if (!exercise) {
+      throw new NotFoundError(`No Exercise with id ${exerciseId}`);
     }
+
+    res.status(StatusCodes.OK).send();
+  }
 }
 
 module.exports = new ExerciseController();

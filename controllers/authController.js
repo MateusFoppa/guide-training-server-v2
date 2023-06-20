@@ -5,22 +5,22 @@ const { attachCookiesToResponse } = require("../utils");
 
 const register = async (req, res) => {
   const { name, email, password } = req.body;
-  // Verify email exist
-  const emailAlreadyExists = await User.findOne({ email });
+
+  const emailAlreadyExists = await User.findOne({ where: { email } });
   if (emailAlreadyExists) {
-    throw new CustomError.BadRequestError("Email already exist");
+    throw new CustomError.BadRequestError("Email already exists");
   }
 
-  // first registered user an admin
-  const isFirstAccount = (await User.countDocuments({})) === 0;
+  const isFirstAccount = await User.count() === 0;
   const role = isFirstAccount ? 'admin' : 'user';
-  req.body.role = role;
 
-  const user = await User.create(req.body);
-  const tokenUser = { name: user.name, userId: user._id, role: user.role };
+  const user = await User.create({ name, email, password, role });
+
+  const tokenUser = { name: user.name, userId: user.id, role: user.role };
   attachCookiesToResponse({ res, user: tokenUser });
   res.status(StatusCodes.CREATED).json({ user: tokenUser });
 };
+
 const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -28,26 +28,28 @@ const login = async (req, res) => {
     throw new CustomError.BadRequestError("Please provide email and password");
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ where: { email } });
 
   if (!user) {
     throw new CustomError.UnauthenticatedError("Invalid Credentials");
   }
+
   const isPasswordCorrect = await user.comparePassword(password);
   if (!isPasswordCorrect) {
     throw new CustomError.UnauthenticatedError("Invalid Credentials");
   }
 
-  const tokenUser = { name: user.name, userId: user._id, role: user.role };
+  const tokenUser = { name: user.name, userId: user.id, role: user.role };
   attachCookiesToResponse({ res, user: tokenUser });
   res.status(StatusCodes.CREATED).json({ user: tokenUser });
 };
+
 const logout = async (req, res) => {
   res.cookie("token", "logout", {
     httpOnly: true,
     expires: new Date(Date.now() + 5 * 1000),
   });
-  res.status(StatusCodes.OK).json({ msg: 'user logged out! '});
+  res.status(StatusCodes.OK).json({ msg: 'User logged out! '});
 };
 
 module.exports = {

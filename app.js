@@ -29,6 +29,10 @@ const exerciseRouter = require('./routes/exercise');
 const notFoundMiddleware = require('./middleware/not-found');
 const errorHandlerMiddleware = require('./middleware/error-handler');
 
+// db mysql
+const db = require("./db/db");
+
+
 app.set('trust proxy', 1);
 app.use(
   rateLimiter({
@@ -60,9 +64,13 @@ app.use(errorHandlerMiddleware);
 
 const port = process.env.PORT || 5000;
 
+
 const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);
+    db.sync().then(() => {
+      console.log(`Banco de dados conectado: ${process.env.DB_NAME}`);
+    });
     app.listen(port, () =>
       console.log(`Server is listening on port ${port}...`)
     );
